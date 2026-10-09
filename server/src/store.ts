@@ -1,0 +1,115 @@
+import fs from "node:fs";
+import path from "node:path";
+
+export type TicketType = {
+  id: string;
+  name: string;
+  price: number;
+  total: number;
+  reserved: number;
+  sold: number;
+};
+
+export type EventRecord = {
+  id: string;
+  slug: string;
+  title: string;
+  category: string;
+  description: string;
+  imageUrl: string;
+  venue: string;
+  address: string;
+  city: string;
+  startsAt: string;
+  endsAt: string;
+  featured: boolean;
+  tickets: TicketType[];
+};
+
+export type Hold = {
+  id: string;
+  userId: string;
+  eventId: string;
+  ticketTypeId: string;
+  quantity: number;
+  unitPrice: number;
+  expiresAt: number;
+  status: "ACTIVE" | "CONSUMED" | "RELEASED" | "EXPIRED";
+  idempotencyKey: string;
+};
+
+export type Booking = {
+  reference: string;
+  userId: string;
+  eventId: string;
+  eventTitle: string;
+  ticketType: string;
+  quantity: number;
+  total: number;
+  status: "CONFIRMED" | "PAYMENT_FAILED" | "EXPIRED";
+  paymentStatus: "SUCCEEDED" | "FAILED";
+  createdAt: string;
+  holdId: string;
+};
+
+type State = { events: EventRecord[]; holds: Hold[]; bookings: Booking[] };
+
+const statePath = path.resolve(process.cwd(), "data", "store.json");
+
+const daysFromNow = (days: number, hour = 19) => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  d.setHours(hour, 0, 0, 0);
+  return d.toISOString();
+};
+
+const initialEvents: EventRecord[] = [
+  { id:"evt-1", slug:"indie-sunset", title:"Indie Sunset Live", category:"Music", description:"An open-air evening of indie favourites, live bands, and golden-hour energy. Bring your friends for a memorable night of music.", imageUrl:"https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&w=1400&q=85", venue:"Codissia Open Grounds", address:"Avinashi Road", city:"Coimbatore", startsAt:daysFromNow(8,18), endsAt:daysFromNow(8,22), featured:true, tickets:[{id:"tt-1a",name:"General Admission",price:79900,total:500,reserved:0,sold:112},{id:"tt-1b",name:"VIP",price:179900,total:120,reserved:0,sold:37}] },
+  { id:"evt-2", slug:"stadium-football-night", title:"Stadium Football Night", category:"Sports", description:"Feel the roar of the crowd at a thrilling live football showcase with fan zones and stadium food.", imageUrl:"https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=1400&q=85", venue:"Jawaharlal Nehru Stadium", address:"Park Town", city:"Chennai", startsAt:daysFromNow(12,19), endsAt:daysFromNow(12,22), featured:true, tickets:[{id:"tt-2a",name:"East Stand",price:49900,total:900,reserved:0,sold:410},{id:"tt-2b",name:"Premium Stand",price:129900,total:180,reserved:0,sold:90}] },
+  { id:"evt-3", slug:"laugh-out-loud", title:"Laugh Out Loud Comedy", category:"Comedy", description:"A fast-paced stand-up night featuring sharp observational comedy and crowd work.", imageUrl:"https://images.unsplash.com/photo-1585699324551-f6c309eedeca?auto=format&fit=crop&w=1400&q=85", venue:"The Music Academy", address:"T.T.K. Road", city:"Chennai", startsAt:daysFromNow(5,20), endsAt:daysFromNow(5,22), featured:false, tickets:[{id:"tt-3a",name:"Standard",price:59900,total:250,reserved:0,sold:61},{id:"tt-3b",name:"Front Row",price:99900,total:60,reserved:0,sold:20}] },
+  { id:"evt-4", slug:"classical-evening", title:"Classical Evening: Strings & Soul", category:"Theatre", description:"An intimate evening celebrating classical compositions, skilled musicians, and rich acoustic sound.", imageUrl:"https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=85", venue:"Bharatiya Vidya Bhavan", address:"Race Course", city:"Coimbatore", startsAt:daysFromNow(18,18), endsAt:daysFromNow(18,21), featured:false, tickets:[{id:"tt-4a",name:"Balcony",price:39900,total:200,reserved:0,sold:30},{id:"tt-4b",name:"Premium",price:89900,total:80,reserved:0,sold:18}] },
+  { id:"evt-5", slug:"neon-fest", title:"Neon Fields Festival", category:"Festivals", description:"A full-day festival with electronic music, immersive lights, art installations, and food stalls.", imageUrl:"https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=1400&q=85", venue:"YMCA Grounds", address:"Nandanam", city:"Chennai", startsAt:daysFromNow(24,16), endsAt:daysFromNow(24,23), featured:true, tickets:[{id:"tt-5a",name:"Festival Pass",price:149900,total:1200,reserved:0,sold:380},{id:"tt-5b",name:"Backstage VIP",price:399900,total:100,reserved:0,sold:28}] },
+  { id:"evt-6", slug:"coastal-jazz", title:"Coastal Jazz Sessions", category:"Music", description:"Smooth jazz, talented performers, and a relaxed evening in a beautiful live-music setting.", imageUrl:"https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1400&q=85", venue:"Bay View Lawn", address:"East Coast Road", city:"Chennai", startsAt:daysFromNow(16,18), endsAt:daysFromNow(16,21), featured:false, tickets:[{id:"tt-6a",name:"Lawn Entry",price:69900,total:300,reserved:0,sold:84}] },
+  { id:"evt-7", slug:"startup-stage", title:"Startup Stage Summit", category:"Business", description:"A day of founder stories, product demos, networking, and practical sessions for builders.", imageUrl:"https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1400&q=85", venue:"Chennai Trade Centre", address:"Nandambakkam", city:"Chennai", startsAt:daysFromNow(30,9), endsAt:daysFromNow(30,17), featured:false, tickets:[{id:"tt-7a",name:"Delegate Pass",price:99900,total:500,reserved:0,sold:140},{id:"tt-7b",name:"All Access",price:249900,total:100,reserved:0,sold:25}] },
+  { id:"evt-8", slug:"dance-beyond", title:"Dance Beyond Borders", category:"Theatre", description:"A colourful stage production bringing together contemporary dance, traditional movement, and storytelling.", imageUrl:"https://images.unsplash.com/photo-1504609813442-a8924e83f76e?auto=format&fit=crop&w=1400&q=85", venue:"PSG Convention Centre", address:"Peelamedu", city:"Coimbatore", startsAt:daysFromNow(10,18), endsAt:daysFromNow(10,20), featured:false, tickets:[{id:"tt-8a",name:"Standard",price:44900,total:220,reserved:0,sold:72}] },
+  { id:"evt-9", slug:"city-marathon", title:"City Run 10K", category:"Sports", description:"Join runners of every level for a lively city run with timing support, hydration points, and finisher medals.", imageUrl:"https://images.unsplash.com/photo-1452626038306-9aae5e071dd3?auto=format&fit=crop&w=1400&q=85", venue:"Race Course Grounds", address:"Race Course", city:"Coimbatore", startsAt:daysFromNow(35,6), endsAt:daysFromNow(35,10), featured:false, tickets:[{id:"tt-9a",name:"Runner Entry",price:29900,total:1000,reserved:0,sold:260}] },
+  { id:"evt-10", slug:"acoustic-stories", title:"Acoustic Stories", category:"Music", description:"A stripped-back concert with intimate vocals, acoustic arrangements, and a cosy audience atmosphere.", imageUrl:"https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=1400&q=85", venue:"The Residency Towers", address:"Avinashi Road", city:"Coimbatore", startsAt:daysFromNow(20,19), endsAt:daysFromNow(20,22), featured:false, tickets:[{id:"tt-10a",name:"General",price:64900,total:180,reserved:0,sold:43}] }
+];
+
+function loadState(): State {
+  try {
+    if (fs.existsSync(statePath)) return JSON.parse(fs.readFileSync(statePath, "utf8")) as State;
+  } catch { /* Re-create a valid local demo store if the file is malformed. */ }
+  return { events: initialEvents, holds: [], bookings: [] };
+}
+
+let state = loadState();
+
+function persist() {
+  fs.mkdirSync(path.dirname(statePath), { recursive: true });
+  const temp = `${statePath}.tmp`;
+  fs.writeFileSync(temp, JSON.stringify(state, null, 2));
+  fs.renameSync(temp, statePath);
+}
+
+export function getState() { return state; }
+export function saveState() { persist(); }
+export function resetStateForTests() { state = { events: structuredClone(initialEvents), holds: [], bookings: [] }; }
+export function eventById(id: string) { return state.events.find(e => e.id === id); }
+export function publicEvent(event: EventRecord) {
+  return {
+    ...event,
+    tickets: event.tickets.map(t => ({ ...t, available: Math.max(0, t.total - t.reserved - t.sold) }))
+  };
+}
+export function expireHolds(now = Date.now()) {
+  for (const hold of state.holds) {
+    if (hold.status === "ACTIVE" && hold.expiresAt <= now) {
+      const ticket = eventById(hold.eventId)?.tickets.find(t => t.id === hold.ticketTypeId);
+      if (ticket) ticket.reserved = Math.max(0, ticket.reserved - hold.quantity);
+      hold.status = "EXPIRED";
+    }
+  }
+  persist();
+}
+export function availableFor(ticket: TicketType) { return ticket.total - ticket.reserved - ticket.sold; }
